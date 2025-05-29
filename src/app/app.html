@@ -1,0 +1,38 @@
+<mat-toolbar color="primary">
+  YAML Configuration Manager
+</mat-toolbar>
+
+<div class="container">
+  <mat-card>
+    <mat-form-field appearance="fill" class="full-width no-resize">
+      <mat-label>YAML Configuration</mat-label>
+      <div class="editor">
+        <div class="line-numbers">
+          @for (line of yamlLines; track $index) {
+              <div [class.error-line]="errorLine === $index">{{ $index + 1 }}</div>
+          }
+        </div>
+        <textarea
+          matInput
+          rows="20"
+          [(ngModel)]="yamlText"
+          (input)="onInput()"
+        ></textarea>
+      </div>
+    </mat-form-field>
+
+    <div class="button-group">
+      <button mat-raised-button color="accent" (click)="onParse()">Parse</button>
+      <button mat-raised-button color="primary" (click)="onValidate()">Validate</button>
+      <button mat-raised-button (click)="onSave()">Save</button>
+    </div>
+
+    @if (parseError; as error) {
+      <div class="error">⚠️ Line {{ errorLine + 1 }}: {{ error }}</div>
+    }
+
+    @if (parsedJSON; as json) {
+      <pre>{{ json | json }}</pre>
+    }
+  </mat-card>
+</div>
