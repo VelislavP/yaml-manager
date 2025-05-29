@@ -98,3 +98,31 @@ onValidate() {
     return this.yamlText.split('\n');
   }
 }
+
+/*  ✅ Replace <textarea> or contenteditable with Monaco Editor
+
+ ✅ Parse YAML using js-yaml and handle syntax errors
+
+ ✅ Validate YAML using ajv and show schema errors
+
+ ✅ Highlight the line with YAML syntax error
+
+ ✅ Show tooltip with error message using Angular Material
+
+ ✅ Add a download YAML button
+
+ ✅ Add upload from file option
+
+ ✅ Format YAML (pretty print after parsing)
+
+ ✅ Live validation with debounce
+
+ ✅ Toggle YAML ↔ JSON preview
+
+ ✅ Save YAML configs to localStorage
+
+ ✅ List saved configs in a sidebar
+
+ - Load saved YAML on click
+
+ - Allow deleting saved configs */
