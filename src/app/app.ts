@@ -1,3 +1,5 @@
+// src/app/app.ts
+
 import {
   Component,
   AfterViewInit,
@@ -13,6 +15,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatListModule } from '@angular/material/list';
 
 import {
   ApplicationConfig,
@@ -34,6 +37,7 @@ import { bootstrapApplication } from '@angular/platform-browser';
     MatButtonModule,
     MatCardModule,
     MatSnackBarModule,
+    MatListModule,
   ],
   templateUrl: './app.html',
   styleUrls: ['./app.scss'],
@@ -42,12 +46,17 @@ export class App implements AfterViewInit {
   @ViewChild('editorContainer', { static: true })
   editorContainer!: ElementRef<HTMLDivElement>;
 
-  yamlText = '';           
-  parsedJSON: any = null;  
+  
+  yamlText = ''; 
+  parsedJSON: any = null; 
   parseError: string = ''; 
   errorLine: number = -1; 
 
+  configNames: string[] = []; 
+  selectedConfig: string | null = null;
+
   private monacoEditorInstance!: any;
+  private monaco: typeof import('monaco-editor') | null = null;
 
   schema = {
     type: 'object',
@@ -75,13 +84,14 @@ export class App implements AfterViewInit {
     additionalProperties: false,
   };
 
+  isJsonView = false;
+
   constructor(private snackBar: MatSnackBar) {}
 
   async ngAfterViewInit() {
-    // Dynamically import Monaco’s ESM build
-    const monaco = await import('monaco-editor');
+    this.monaco = await import('monaco-editor');
 
-    this.monacoEditorInstance = monaco.editor.create(
+    this.monacoEditorInstance = this.monaco.editor.create(
       this.editorContainer.nativeElement,
       {
         value: this.yamlText,
@@ -98,8 +108,82 @@ export class App implements AfterViewInit {
       this.errorLine = -1;
       this.parsedJSON = null;
     });
+
+    this.refreshConfigNames();
   }
 
+  refreshConfigNames() {
+    this.configNames = [];
+    this.selectedConfig = null;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('config:')) {
+        this.configNames.push(key.substring('config:'.length));
+      }
+    }
+    this.configNames.sort((a, b) => a.localeCompare(b));
+  }
+
+  onSave() {
+    const name = prompt('Enter a name for this configuration:');
+    if (name === null) {
+      return; 
+    }
+    const trimmed = name.trim();
+    if (!trimmed) {
+      this.snackBar.open('Name cannot be empty.', '', { duration: 2000 });
+      return;
+    }
+    const key = 'config:' + trimmed;
+    if (localStorage.getItem(key) !== null) {
+      const overwrite = confirm(
+        `A config named "${trimmed}" already exists. Overwrite?`
+      );
+      if (!overwrite) {
+        return;
+      }
+    }
+    localStorage.setItem(key, this.yamlText);
+    this.snackBar.open(`Configuration "${trimmed}" saved.`, '', {
+      duration: 2000,
+    });
+    this.refreshConfigNames();
+  }
+
+  loadSelected() {
+    if (!this.selectedConfig) {
+      return;
+    }
+    const key = 'config:' + this.selectedConfig;
+    const value = localStorage.getItem(key);
+    if (value !== null) {
+      this.yamlText = value;
+      this.parsedJSON = null;
+      this.parseError = '';
+      this.errorLine = -1;
+      this.isJsonView = false;
+      this.monacoEditorInstance.setValue(this.yamlText);
+      this.monaco!.editor.setModelLanguage(
+        this.monacoEditorInstance.getModel(),
+        'yaml'
+      );
+      this.snackBar.open(`Loaded configuration "${this.selectedConfig}".`, '', {
+        duration: 2000,
+      });
+    }
+  }
+
+  deleteSelected() {
+    if (!this.selectedConfig) {
+      return;
+    }
+    const key = 'config:' + this.selectedConfig;
+    localStorage.removeItem(key);
+    this.snackBar.open(`Deleted configuration "${this.selectedConfig}".`, '', {
+      duration: 2000,
+    });
+    this.refreshConfigNames();
+  }
 
   onParse() {
     try {
@@ -111,7 +195,6 @@ export class App implements AfterViewInit {
       this.parsedJSON = null;
       this.parseError = err.reason || err.message;
       this.errorLine = err.mark?.line ?? -1;
-
       if (this.errorLine >= 0) {
         this.monacoEditorInstance.revealLine(this.errorLine + 1);
         this.monacoEditorInstance.setPosition({
@@ -123,7 +206,6 @@ export class App implements AfterViewInit {
     }
   }
 
-
   onValidate() {
     if (!this.parsedJSON) {
       this.snackBar.open('Please parse valid YAML before validating.', '', {
@@ -131,11 +213,9 @@ export class App implements AfterViewInit {
       });
       return;
     }
-
     const ajv = new Ajv({ allErrors: true, strict: true });
     const validate = ajv.compile(this.schema);
     const valid = validate(this.parsedJSON);
-
     if (valid) {
       this.parseError = '';
       this.snackBar.open('Schema validation passed!', '', { duration: 2000 });
@@ -154,42 +234,61 @@ export class App implements AfterViewInit {
   }
 
 
-  onSave() {
-    localStorage.setItem('config', this.yamlText);
-    this.snackBar.open('Configuration saved!', '', { duration: 2000 });
-  }
+  toggleView() {
+    if (!this.monaco) {
+      return;
+    }
 
+    if (!this.isJsonView) {
+      try {
+        const jsObj = yaml.load(this.yamlText);
+        const jsonString = JSON.stringify(jsObj, null, 2);
 
-  onLoad() {
-    const saved = localStorage.getItem('config');
-    if (saved !== null) {
-      this.yamlText = saved;
-      this.parsedJSON = null;
+        const model = this.monacoEditorInstance.getModel();
+        this.monaco.editor.setModelLanguage(model, 'json');
+        this.isJsonView = true;
+        this.yamlText = jsonString;
+        this.monacoEditorInstance.setValue(this.yamlText);
+      } catch (err: any) {
+        this.parsedJSON = null;
+        this.parseError = err.reason || err.message;
+        this.errorLine = err.mark?.line ?? -1;
+        if (this.errorLine >= 0) {
+          this.monacoEditorInstance.revealLine(this.errorLine + 1);
+          this.monacoEditorInstance.setPosition({
+            lineNumber: this.errorLine + 1,
+            column: 1,
+          });
+          this.monacoEditorInstance.focus();
+        }
+      }
+    } else {
+
+      try {
+        const jsObj = JSON.parse(this.yamlText);
+        const yamlString = yaml.dump(jsObj);
+
+        const model = this.monacoEditorInstance.getModel();
+        this.monaco.editor.setModelLanguage(model, 'yaml');
+        this.isJsonView = false;
+        this.yamlText = yamlString;
+        this.monacoEditorInstance.setValue(this.yamlText);
+      } catch (err: any) {
+        this.parsedJSON = null;
+        this.parseError = err.message;
+        this.errorLine = -1; 
+      }
+    }
+
+    this.parsedJSON = null;
+    if (!this.parseError) {
       this.parseError = '';
       this.errorLine = -1;
-      this.monacoEditorInstance.setValue(this.yamlText);
-      this.snackBar.open('Loaded saved configuration!', '', { duration: 2000 });
-    } else {
-      this.snackBar.open('No saved configuration found.', '', {
-        duration: 2000,
-      });
     }
   }
-
-  onDelete() {
-    const had = localStorage.getItem('config');
-    if (had !== null) {
-      localStorage.removeItem('config');
-      this.snackBar.open('Saved configuration deleted.', '', { duration: 2000 });
-    } else {
-      this.snackBar.open('No saved configuration to delete.', '', {
-        duration: 2000,
-      });
-    }
-  }
-
 
   onEditorKeydown(event: KeyboardEvent) {
+
   }
 }
 

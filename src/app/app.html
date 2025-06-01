@@ -1,32 +1,74 @@
-<!-- src/app/app.html -->
 <mat-toolbar color="primary">
   YAML Configuration Manager
 </mat-toolbar>
 
-<div class="container">
-  <mat-card>
-    <!-- Simple label instead of mat-form-field -->
-    <label class="yaml-label">YAML Configuration</label>
-    <div #editorContainer class="monaco-wrapper"></div>
+<div class="main-container">
+  <!-- Sidebar (on the left) -->
+  <div class="sidebar">
+    <h3>Saved Configs</h3>
+    <mat-selection-list
+      [multiple]="false"
+      [(ngModel)]="selectedConfig"
+      class="config-list"
+    >
+      <mat-list-option
+        *ngFor="let name of configNames"
+        [value]="name"
+      >
+        {{ name }}
+      </mat-list-option>
+    </mat-selection-list>
+  </div>
 
-    <div class="button-group">
-      <button mat-raised-button color="accent" (click)="onParse()">Parse</button>
-      <button mat-raised-button color="primary" (click)="onValidate()">Validate</button>
-      <button mat-raised-button (click)="onSave()">Save</button>
-      <button mat-raised-button color="warn" (click)="onLoad()">Load</button>
-      <button mat-raised-button color="warn" (click)="onDelete()">Delete</button>
-    </div>
+  <!-- Editor area (on the right) -->
+  <div class="editor-area">
+    <mat-card>
+      <label class="yaml-label">YAML Configuration</label>
+      <div #editorContainer class="monaco-wrapper"></div>
 
-    <div *ngIf="parseError" class="error">
-      <!-- If errorLine ≥ 0, it’s a js-yaml syntax error => show line. Otherwise show entire parseError as-is -->
-      <ng-container *ngIf="errorLine >= 0; else schemaErrors">
-        ⚠️ Line {{ errorLine + 1 }}: {{ parseError }}
-      </ng-container>
-       <ng-template #schemaErrors>
-        ⚠️ {{ parseError }}
+      <div class="button-group">
+        <button mat-raised-button color="accent" (click)="onParse()">
+          Parse
+        </button>
+        <button mat-raised-button color="primary" (click)="onValidate()">
+          Validate
+        </button>
+        <button mat-raised-button (click)="onSave()">
+          Save As…
+        </button>
+        <button
+          mat-raised-button
+          color="warn"
+          (click)="loadSelected()"
+          [disabled]="!selectedConfig"
+        >
+          Load
+        </button>
+        <button
+          mat-raised-button
+          color="warn"
+          (click)="deleteSelected()"
+          [disabled]="!selectedConfig"
+        >
+          Delete
+        </button>
+
+        <button mat-raised-button color="accent" (click)="toggleView()">
+          
+          {{ isJsonView ? 'View YAML' : 'View JSON' }}
+        </button>
+      </div>
+
+      <div *ngIf="parseError" class="error">
+        <ng-container *ngIf="errorLine >= 0; else schemaErrors">
+          ⚠️ Line {{ errorLine + 1 }}: {{ parseError }}
+        </ng-container>
+        <ng-template #schemaErrors>
+          <pre class="error-text">⚠️ {{ parseError }}</pre>
         </ng-template>
-    </div>
+      </div>
 
-    <pre *ngIf="parsedJSON">{{ parsedJSON | json }}</pre>
-  </mat-card>
+      <pre *ngIf="parsedJSON">{{ parsedJSON | json }}</pre>
+    </mat-card>
+  </div>
 </div>
