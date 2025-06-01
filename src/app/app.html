@@ -54,19 +54,19 @@
         </button>
 
         <button mat-raised-button color="accent" (click)="toggleView()">
-          
+
           {{ isJsonView ? 'View YAML' : 'View JSON' }}
         </button>
       </div>
 
-      <div *ngIf="parseError" class="error">
-        <ng-container *ngIf="errorLine >= 0; else schemaErrors">
-          ⚠️ Line {{ errorLine + 1 }}: {{ parseError }}
-        </ng-container>
-        <ng-template #schemaErrors>
-          <pre class="error-text">⚠️ {{ parseError }}</pre>
-        </ng-template>
-      </div>
+<div *ngIf="parseError" class="error">
+  <ng-container *ngIf="errorLine > 0; else schemaErrors">
+    ⚠️ Line {{ errorLine }}: {{ parseError }}
+  </ng-container>
+  <ng-template #schemaErrors>
+    <pre class="error-text">⚠️ {{ parseError }}</pre>
+  </ng-template>
+</div>
 
       <pre *ngIf="parsedJSON">{{ parsedJSON | json }}</pre>
     </mat-card>

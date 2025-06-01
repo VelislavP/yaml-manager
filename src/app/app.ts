@@ -1,5 +1,3 @@
-// src/app/app.ts
-
 import {
   Component,
   AfterViewInit,
@@ -46,17 +44,18 @@ export class App implements AfterViewInit {
   @ViewChild('editorContainer', { static: true })
   editorContainer!: ElementRef<HTMLDivElement>;
 
-  
   yamlText = ''; 
-  parsedJSON: any = null; 
-  parseError: string = ''; 
-  errorLine: number = -1; 
+  parsedJSON: any = null;                        
+  parseError: string = '';                       
+  errorLine: number = -1;                        
 
-  configNames: string[] = []; 
+  configNames: string[] = [];                    
   selectedConfig: string | null = null;
 
-  private monacoEditorInstance!: any;
+  private monacoEditorInstance!: any;            
   private monaco: typeof import('monaco-editor') | null = null;
+
+  private validationTimeout: any = null;
 
   schema = {
     type: 'object',
@@ -104,9 +103,12 @@ export class App implements AfterViewInit {
 
     this.monacoEditorInstance.onDidChangeModelContent(() => {
       this.yamlText = this.monacoEditorInstance.getValue();
-      this.parseError = '';
       this.errorLine = -1;
       this.parsedJSON = null;
+      this.parseError = '';
+      if (!this.isJsonView) {
+        this.scheduleLiveValidation();
+      }
     });
 
     this.refreshConfigNames();
@@ -126,9 +128,7 @@ export class App implements AfterViewInit {
 
   onSave() {
     const name = prompt('Enter a name for this configuration:');
-    if (name === null) {
-      return; 
-    }
+    if (name === null) return;
     const trimmed = name.trim();
     if (!trimmed) {
       this.snackBar.open('Name cannot be empty.', '', { duration: 2000 });
@@ -137,11 +137,9 @@ export class App implements AfterViewInit {
     const key = 'config:' + trimmed;
     if (localStorage.getItem(key) !== null) {
       const overwrite = confirm(
-        `A config named "${trimmed}" already exists. Overwrite?`
+        `A configuration named "${trimmed}" already exists. Overwrite?`
       );
-      if (!overwrite) {
-        return;
-      }
+      if (!overwrite) return;
     }
     localStorage.setItem(key, this.yamlText);
     this.snackBar.open(`Configuration "${trimmed}" saved.`, '', {
@@ -151,9 +149,7 @@ export class App implements AfterViewInit {
   }
 
   loadSelected() {
-    if (!this.selectedConfig) {
-      return;
-    }
+    if (!this.selectedConfig) return;
     const key = 'config:' + this.selectedConfig;
     const value = localStorage.getItem(key);
     if (value !== null) {
@@ -174,9 +170,7 @@ export class App implements AfterViewInit {
   }
 
   deleteSelected() {
-    if (!this.selectedConfig) {
-      return;
-    }
+    if (!this.selectedConfig) return;
     const key = 'config:' + this.selectedConfig;
     localStorage.removeItem(key);
     this.snackBar.open(`Deleted configuration "${this.selectedConfig}".`, '', {
@@ -194,13 +188,13 @@ export class App implements AfterViewInit {
     } catch (err: any) {
       this.parsedJSON = null;
       this.parseError = err.reason || err.message;
-      this.errorLine = err.mark?.line ?? -1;
-      if (this.errorLine >= 0) {
-        this.monacoEditorInstance.revealLine(this.errorLine + 1);
+      this.errorLine = (err.mark?.line ?? -1);
+      if (this.errorLine > 0) {
+        this.monacoEditorInstance.revealLine(this.errorLine);
         this.monacoEditorInstance.setPosition({
-          lineNumber: this.errorLine + 1,
-          column: 1,
-        });
+        lineNumber: this.errorLine,
+        column: 1,
+      });
         this.monacoEditorInstance.focus();
       }
     }
@@ -233,6 +227,54 @@ export class App implements AfterViewInit {
     }
   }
 
+  scheduleLiveValidation() {
+    if (this.validationTimeout) {
+      clearTimeout(this.validationTimeout);
+    }
+    this.validationTimeout = setTimeout(() => {
+      this.liveValidate();
+    }, 500);
+  }
+
+
+  private liveValidate() {
+    if (this.isJsonView) {
+      return;
+    }
+
+    try {
+      const jsObj = yaml.load(this.yamlText);
+      this.parsedJSON = jsObj;
+      this.parseError = '';
+      this.errorLine = -1;
+
+      const ajv = new Ajv({ allErrors: true, strict: true });
+      const validate = ajv.compile(this.schema);
+      const valid = validate(jsObj);
+      if (!valid) {
+        const msgs = validate.errors!.map((e) => {
+          if (e.keyword === 'required' && (e.params as any).missingProperty) {
+            const missing = (e.params as any).missingProperty;
+            return `Path '${e.instancePath || '/'}': missing required property '${missing}'`;
+          }
+          return `Path '${e.instancePath || '/'}': ${e.message}`;
+        });
+        this.parseError = msgs.join('\n');
+        this.errorLine = -1;
+      }
+    } catch (err: any) {
+        this.parsedJSON = null;
+        this.parseError = err.reason || err.message;
+        this.errorLine = (err.mark?.line ?? -1);
+        if (this.errorLine > 0) {
+        this.monacoEditorInstance.revealLine(this.errorLine);
+        this.monacoEditorInstance.setPosition({
+        lineNumber: this.errorLine,
+        column: 1,
+       });
+      }
+    }
+  }
 
   toggleView() {
     if (!this.monaco) {
@@ -254,7 +296,7 @@ export class App implements AfterViewInit {
         this.parseError = err.reason || err.message;
         this.errorLine = err.mark?.line ?? -1;
         if (this.errorLine >= 0) {
-          this.monacoEditorInstance.revealLine(this.errorLine + 1);
+          this.monacoEditorInstance.revealLine(this.errorLine);
           this.monacoEditorInstance.setPosition({
             lineNumber: this.errorLine + 1,
             column: 1,
@@ -263,7 +305,6 @@ export class App implements AfterViewInit {
         }
       }
     } else {
-
       try {
         const jsObj = JSON.parse(this.yamlText);
         const yamlString = yaml.dump(jsObj);
@@ -276,20 +317,18 @@ export class App implements AfterViewInit {
       } catch (err: any) {
         this.parsedJSON = null;
         this.parseError = err.message;
-        this.errorLine = -1; 
+        this.errorLine = -1;
       }
     }
 
-    this.parsedJSON = null;
     if (!this.parseError) {
-      this.parseError = '';
+      this.parsedJSON = null;
       this.errorLine = -1;
+      this.parseError = '';
     }
   }
 
-  onEditorKeydown(event: KeyboardEvent) {
-
-  }
+  onEditorKeydown(event: KeyboardEvent) {}
 }
 
 export const appConfig: ApplicationConfig = {
