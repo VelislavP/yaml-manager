@@ -3,7 +3,6 @@
 </mat-toolbar>
 
 <div class="main-container">
-  <!-- Sidebar (on the left) -->
   <div class="sidebar">
     <h3>Saved Configs</h3>
     <mat-selection-list
@@ -20,7 +19,6 @@
     </mat-selection-list>
   </div>
 
-  <!-- Editor area (on the right) -->
   <div class="editor-area">
     <mat-card>
       <label class="yaml-label">YAML Configuration</label>
@@ -33,6 +31,9 @@
         <button mat-raised-button color="primary" (click)="onValidate()">
           Validate
         </button>
+          <button mat-raised-button color="accent" (click)="onFormat()">
+          Format
+         </button>
         <button mat-raised-button (click)="onSave()">
           Save As…
         </button>
@@ -51,6 +52,15 @@
           [disabled]="!selectedConfig"
         >
           Delete
+        </button>
+
+        <button
+          mat-raised-button
+          color="primary"
+          click="downloadSelected()"
+          [disabled]="!selectedConfig"
+          > 
+            Download YAML
         </button>
 
         <button mat-raised-button color="accent" (click)="toggleView()">

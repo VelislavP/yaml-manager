@@ -242,6 +242,20 @@ export class App implements AfterViewInit {
       console.error(validate.errors);
     }
   }
+  
+  private clearDecorations() {
+    if (this.monacoEditorInstance && this.errorDecorations.length) {
+      this.errorDecorations = this.monacoEditorInstance.deltaDecorations(
+        this.errorDecorations,
+        []
+      );
+    }
+  }
+
+ onFormat() {
+  //
+}
+
 
   scheduleLiveValidation() {
     if (this.validationTimeout) {
@@ -292,11 +306,32 @@ export class App implements AfterViewInit {
     }
   }
 
+downloadSelected() {
+  if (!this.selectedConfig) return;
+
+  const key = 'config:' + this.selectedConfig;
+  const value = localStorage.getItem(key);
+  if (value === null) {
+    this.snackBar.open('No config found to download.', '', { duration: 2000 });
+    return;
+  }
+
+  const blob = new Blob([value], { type: 'text/yaml' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${this.selectedConfig}.yaml`;
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+
   toggleView() {
     if (!this.monaco) {
       return;
     }
-
+    this.clearDecorations()
     if (!this.isJsonView) {
       try {
         const jsObj = yaml.load(this.yamlText);
