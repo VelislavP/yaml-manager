@@ -1,5 +1,3 @@
-// src/app/app.ts
-
 import {
   Component,
   AfterViewInit,
@@ -14,8 +12,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatToolbarModule } from '@angular/material/toolbar';
 
 import {
@@ -35,31 +31,24 @@ import { bootstrapApplication } from '@angular/platform-browser';
     CommonModule,
     FormsModule,
     MatToolbarModule,
-    MatFormFieldModule,
-    MatInputModule,
     MatButtonModule,
     MatCardModule,
-    MatSnackBarModule, // adjust as needed
+    MatSnackBarModule,
   ],
-  templateUrl: './app.html',   // we’ll modify app.html next
-  styleUrls: ['./app.scss'],   // keep your existing styles
+  templateUrl: './app.html',
+  styleUrls: ['./app.scss'],
 })
 export class App implements AfterViewInit {
-  // Grabbing the <div #editorContainer> from the template
   @ViewChild('editorContainer', { static: true })
   editorContainer!: ElementRef<HTMLDivElement>;
 
-  // Holds the current YAML text
-  yamlText = '';
+  yamlText = '';           
+  parsedJSON: any = null;  
+  parseError: string = ''; 
+  errorLine: number = -1; 
 
-  parsedJSON: any = null;
-  parseError: string = '';
-  errorLine: number = -1;
+  private monacoEditorInstance!: any;
 
-  // Reference to the Monaco editor instance
-  private monacoEditorInstance: any;
-
-  // JSON schema for validation
   schema = {
     type: 'object',
     properties: {
@@ -67,22 +56,31 @@ export class App implements AfterViewInit {
         type: 'object',
         properties: {
           name: { type: 'string' },
-          version: { type: 'string' },
+          version: { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+$' },
+          settings: {
+            type: 'object',
+            properties: {
+              debug: { type: 'boolean' },
+              maxUsers: { type: 'integer', minimum: 1 },
+            },
+            required: ['debug'],
+            additionalProperties: false,
+          },
         },
         required: ['name', 'version'],
+        additionalProperties: false,
       },
     },
     required: ['app'],
+    additionalProperties: false,
   };
 
   constructor(private snackBar: MatSnackBar) {}
 
-  // AfterViewInit is where we initialize Monaco
   async ngAfterViewInit() {
-    // Dynamically load the ESM build of monaco-editor
+    // Dynamically import Monaco’s ESM build
     const monaco = await import('monaco-editor');
 
-    // Create the editor inside our <div #editorContainer>
     this.monacoEditorInstance = monaco.editor.create(
       this.editorContainer.nativeElement,
       {
@@ -94,72 +92,107 @@ export class App implements AfterViewInit {
       }
     );
 
-    // Whenever the user types, update this.yamlText and clear errors
     this.monacoEditorInstance.onDidChangeModelContent(() => {
       this.yamlText = this.monacoEditorInstance.getValue();
       this.parseError = '';
       this.errorLine = -1;
+      this.parsedJSON = null;
     });
   }
 
+
   onParse() {
     try {
-      const interpolated = this.interpolateEnv(this.yamlText);
-      this.parsedJSON = yaml.load(interpolated);
+      this.parsedJSON = yaml.load(this.yamlText);
       this.parseError = '';
       this.errorLine = -1;
+      this.snackBar.open('YAML parsed successfully!', '', { duration: 1500 });
     } catch (err: any) {
       this.parsedJSON = null;
       this.parseError = err.reason || err.message;
       this.errorLine = err.mark?.line ?? -1;
 
-      // If there is a line number, scroll Monaco to that line
       if (this.errorLine >= 0) {
         this.monacoEditorInstance.revealLine(this.errorLine + 1);
-        this.monacoEditorInstance.setPosition({ lineNumber: this.errorLine + 1, column: 1 });
+        this.monacoEditorInstance.setPosition({
+          lineNumber: this.errorLine + 1,
+          column: 1,
+        });
         this.monacoEditorInstance.focus();
       }
     }
   }
 
+
   onValidate() {
-    const ajv = new Ajv();
+    if (!this.parsedJSON) {
+      this.snackBar.open('Please parse valid YAML before validating.', '', {
+        duration: 2000,
+      });
+      return;
+    }
+
+    const ajv = new Ajv({ allErrors: true, strict: true });
     const validate = ajv.compile(this.schema);
     const valid = validate(this.parsedJSON);
+
     if (valid) {
-      this.snackBar.open('Validation successful!', '', { duration: 2000 });
+      this.parseError = '';
+      this.snackBar.open('Schema validation passed!', '', { duration: 2000 });
     } else {
-      this.parseError = validate.errors
-        ?.map((err) => `Path '${err.instancePath || '/'}': ${err.message}`)
-        .join('\n') || 'Unknown schema error';
+      const msgs = validate.errors!.map((e) => {
+        if (e.keyword === 'required' && (e.params as any).missingProperty) {
+          const missing = (e.params as any).missingProperty;
+          return `Path '${e.instancePath || '/'}': missing required property '${missing}'`;
+        }
+        return `Path '${e.instancePath || '/'}': ${e.message}`;
+      });
+      this.parseError = msgs.join('\n');
       this.errorLine = -1;
       console.error(validate.errors);
     }
   }
+
 
   onSave() {
     localStorage.setItem('config', this.yamlText);
     this.snackBar.open('Configuration saved!', '', { duration: 2000 });
   }
 
-  onInput() {
-    // Clear errors as soon as the user types
-    this.parseError = '';
-    this.errorLine = -1;
+
+  onLoad() {
+    const saved = localStorage.getItem('config');
+    if (saved !== null) {
+      this.yamlText = saved;
+      this.parsedJSON = null;
+      this.parseError = '';
+      this.errorLine = -1;
+      this.monacoEditorInstance.setValue(this.yamlText);
+      this.snackBar.open('Loaded saved configuration!', '', { duration: 2000 });
+    } else {
+      this.snackBar.open('No saved configuration found.', '', {
+        duration: 2000,
+      });
+    }
   }
 
-  interpolateEnv(yamlStr: string): string {
-    return yamlStr.replace(/\$\{(\w+)(?::([^}]*))?\}/g, (_, varName, fallback) =>
-      (window as any).env?.[varName] || fallback || ''
-    );
+  onDelete() {
+    const had = localStorage.getItem('config');
+    if (had !== null) {
+      localStorage.removeItem('config');
+      this.snackBar.open('Saved configuration deleted.', '', { duration: 2000 });
+    } else {
+      this.snackBar.open('No saved configuration to delete.', '', {
+        duration: 2000,
+      });
+    }
   }
 
-  get yamlLines(): string[] {
-    return this.yamlText.split('\n');
+
+  onEditorKeydown(event: KeyboardEvent) {
   }
 }
 
-// Bootstrapping the standalone component
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
@@ -169,31 +202,3 @@ export const appConfig: ApplicationConfig = {
 };
 
 bootstrapApplication(App, appConfig).catch((err) => console.error(err));
-
-/*  ✅ Replace <textarea> or contenteditable with Monaco Editor - DONE
-
- ✅ Parse YAML using js-yaml and handle syntax errors
-
- ✅ Validate YAML using ajv and show schema errors
-
- ✅ Highlight the line with YAML syntax error
-
- ✅ Show tooltip with error message using Angular Material
-
- ✅ Add a download YAML button
-
- ✅ Add upload from file option
-
- ✅ Format YAML (pretty print after parsing)
-
- ✅ Live validation with debounce
-
- ✅ Toggle YAML ↔ JSON preview
-
- ✅ Save YAML configs to localStorage
-
- ✅ List saved configs in a sidebar
-
- - Load saved YAML on click
-
- - Allow deleting saved configs */

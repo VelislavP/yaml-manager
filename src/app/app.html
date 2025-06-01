@@ -13,10 +13,18 @@
       <button mat-raised-button color="accent" (click)="onParse()">Parse</button>
       <button mat-raised-button color="primary" (click)="onValidate()">Validate</button>
       <button mat-raised-button (click)="onSave()">Save</button>
+      <button mat-raised-button color="warn" (click)="onLoad()">Load</button>
+      <button mat-raised-button color="warn" (click)="onDelete()">Delete</button>
     </div>
 
     <div *ngIf="parseError" class="error">
-      ⚠️ Line {{ errorLine + 1 }}: {{ parseError }}
+      <!-- If errorLine ≥ 0, it’s a js-yaml syntax error => show line. Otherwise show entire parseError as-is -->
+      <ng-container *ngIf="errorLine >= 0; else schemaErrors">
+        ⚠️ Line {{ errorLine + 1 }}: {{ parseError }}
+      </ng-container>
+       <ng-template #schemaErrors>
+        ⚠️ {{ parseError }}
+        </ng-template>
     </div>
 
     <pre *ngIf="parsedJSON">{{ parsedJSON | json }}</pre>
