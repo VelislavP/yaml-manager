@@ -57,6 +57,8 @@ export class App implements AfterViewInit {
 
   private validationTimeout: any = null;
 
+  private errorDecorations: string[] = [];
+
   schema = {
     type: 'object',
     properties: {
@@ -184,12 +186,26 @@ export class App implements AfterViewInit {
       this.parsedJSON = yaml.load(this.yamlText);
       this.parseError = '';
       this.errorLine = -1;
+
+      this.errorDecorations = this.monacoEditorInstance.deltaDecorations(
+      this.errorDecorations,
+        []
+      );
       this.snackBar.open('YAML parsed successfully!', '', { duration: 1500 });
     } catch (err: any) {
       this.parsedJSON = null;
       this.parseError = err.reason || err.message;
       this.errorLine = (err.mark?.line ?? -1);
       if (this.errorLine > 0) {
+        this.errorDecorations = this.monacoEditorInstance.deltaDecorations(
+        this.errorDecorations,
+        [
+          {
+            range: new this.monaco!.Range(this.errorLine, 1, this.errorLine, 1),
+            options: { isWholeLine: true, className: 'error-line-highlight' }
+          }
+        ]
+      );
         this.monacoEditorInstance.revealLine(this.errorLine);
         this.monacoEditorInstance.setPosition({
         lineNumber: this.errorLine,
@@ -298,7 +314,7 @@ export class App implements AfterViewInit {
         if (this.errorLine >= 0) {
           this.monacoEditorInstance.revealLine(this.errorLine);
           this.monacoEditorInstance.setPosition({
-            lineNumber: this.errorLine + 1,
+            lineNumber: this.errorLine,
             column: 1,
           });
           this.monacoEditorInstance.focus();
