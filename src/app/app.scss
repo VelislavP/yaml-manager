@@ -1,63 +1,78 @@
-.container {
-  padding: 2rem;
-  max-width: 900px;
-  margin: auto;
+.error-line-highlight {
+  background-color: rgba(211, 47, 47, 0.3);
 }
 
-.full-width {
-  width: 100%;
+.main-container {
+  display: flex;               
+  height: calc(100vh - 64px);  
 }
 
-.no-resize textarea {
-  resize: none;
-}
-
-.editor {
-  display: flex;
-  font-family: monospace;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-.line-numbers {
-  padding: 0.5rem 0.75rem;
-  background: #f8f8f8;
-  color: #666;
-  user-select: none;
-  text-align: right;
-  min-width: 2rem;
+.sidebar {
+  width: 200px;
   border-right: 1px solid #ccc;
+  padding: 1rem;
+  box-sizing: border-box;
+  background-color: #fafafa;
 }
 
-.line-numbers div {
-  line-height: 1.5;
-  height: 1.5rem;
+.sidebar h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  font-weight: 500;
 }
 
-.line-numbers div.error-line {
-  color: #d32f2f;
-  font-weight: bold;
-  background-color: #ffecec;
-  border-left: 3px solid #d32f2f;
+
+.config-list {
+  max-height: calc(100% - 4rem);
+  overflow-y: auto;
 }
 
-textarea {
-  font-family: monospace;
+
+.editor-area {
+  flex: 1;               
+  overflow: auto;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.yaml-label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.monaco-wrapper {
   width: 100%;
-  border: none;
-  outline: none;
-  padding: 0.5rem;
-  line-height: 1.5;
+  height: 400px; 
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 16px;
 }
+
 
 .button-group {
-  margin-top: 1rem;
   display: flex;
-  gap: 1rem;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
+
 .error {
-  color: red;
-  font-weight: bold;
-  margin-top: 1rem;
+  color: #b00020;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.error-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+pre {
+  background-color: #f5f5f5;
+  padding: 12px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
