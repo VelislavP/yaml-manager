@@ -271,26 +271,26 @@ export class App implements AfterViewInit {
     this.onValidate();  
   }
 
-downloadSelected() {
-  if (!this.selectedConfig) return;
+  downloadSelected() {
+    if (!this.selectedConfig) return;
 
-  const key = 'config:' + this.selectedConfig;
-  const value = localStorage.getItem(key);
-  if (value === null) {
-    this.snackBar.open('No config found to download.', '', { duration: 2000 });
-    return;
+    const key = 'config:' + this.selectedConfig;
+    const value = localStorage.getItem(key);
+    if (value === null) {
+      this.snackBar.open('No config found to download.', '', { duration: 2000 });
+      return;
+    }
+
+    const blob = new Blob([value], { type: 'text/yaml' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${this.selectedConfig}.yaml`;
+    a.click();
+
+    URL.revokeObjectURL(url);
   }
-
-  const blob = new Blob([value], { type: 'text/yaml' });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${this.selectedConfig}.yaml`;
-  a.click();
-
-  URL.revokeObjectURL(url);
-}
 
   toggleView() {
     if (!this.monaco) {
