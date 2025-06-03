@@ -57,7 +57,7 @@
         <button
           mat-raised-button
           color="primary"
-          click="downloadSelected()"
+          (click)="downloadSelected()"
           [disabled]="!selectedConfig"
           > 
             Download YAML

@@ -6,7 +6,6 @@ import {
 } from '@angular/core';
 
 import * as yaml from 'js-yaml';
-import Ajv from 'ajv';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -58,32 +57,6 @@ export class App implements AfterViewInit {
   private validationTimeout: any = null;
 
   private errorDecorations: string[] = [];
-
-  schema = {
-    type: 'object',
-    properties: {
-      app: {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          version: { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+$' },
-          settings: {
-            type: 'object',
-            properties: {
-              debug: { type: 'boolean' },
-              maxUsers: { type: 'integer', minimum: 1 },
-            },
-            required: ['debug'],
-            additionalProperties: false,
-          },
-        },
-        required: ['name', 'version'],
-        additionalProperties: false,
-      },
-    },
-    required: ['app'],
-    additionalProperties: false,
-  };
 
   isJsonView = false;
 
@@ -217,29 +190,26 @@ export class App implements AfterViewInit {
   }
 
   onValidate() {
-    if (!this.parsedJSON) {
-      this.snackBar.open('Please parse valid YAML before validating.', '', {
-        duration: 2000,
-      });
-      return;
-    }
-    const ajv = new Ajv({ allErrors: true, strict: true });
-    const validate = ajv.compile(this.schema);
-    const valid = validate(this.parsedJSON);
-    if (valid) {
+    try {
+      const parsed = yaml.load(this.yamlText);
+      this.parsedJSON = parsed;
       this.parseError = '';
-      this.snackBar.open('Schema validation passed!', '', { duration: 2000 });
-    } else {
-      const msgs = validate.errors!.map((e) => {
-        if (e.keyword === 'required' && (e.params as any).missingProperty) {
-          const missing = (e.params as any).missingProperty;
-          return `Path '${e.instancePath || '/'}': missing required property '${missing}'`;
-        }
-        return `Path '${e.instancePath || '/'}': ${e.message}`;
-      });
-      this.parseError = msgs.join('\n');
       this.errorLine = -1;
-      console.error(validate.errors);
+      this.snackBar.open('YAML is valid syntax.', '', { duration: 2000 });
+    } catch (err: any) {
+      this.parsedJSON = null;
+      this.parseError = err.reason || err.message;
+      this.errorLine = err.mark?.line ?? -1;
+      this.snackBar.open('Invalid YAML syntax.', '', { duration: 2000 });
+
+      if (this.errorLine > 0) {
+        this.monacoEditorInstance.revealLine(this.errorLine);
+        this.monacoEditorInstance.setPosition({
+          lineNumber: this.errorLine,
+          column: 1,
+        });
+        this.monacoEditorInstance.focus();
+      }
     }
   }
   
@@ -252,10 +222,36 @@ export class App implements AfterViewInit {
     }
   }
 
- onFormat() {
-  //
-}
+  onFormat() {
+    try {
+      const parsed = yaml.load(this.yamlText);
+      const formatted = yaml.dump(parsed, {
+        indent: 2,
+        lineWidth: 80,
+        noRefs: true,
+      });
+      this.yamlText = formatted;
+      this.monacoEditorInstance.setValue(this.yamlText);
+      this.parseError = '';
+      this.errorLine = -1;
+      this.snackBar.open('YAML formatted successfully.', '', { duration: 1500 });
+    } catch (err: any) {
+      this.parseError = err.reason || err.message;
+      this.errorLine = err.mark?.line ?? -1;
+      this.snackBar.open('Formatting failed. Invalid YAML.', '', {
+        duration: 2000,
+      });
 
+      if (this.errorLine > 0) {
+        this.monacoEditorInstance.revealLine(this.errorLine);
+        this.monacoEditorInstance.setPosition({
+          lineNumber: this.errorLine,
+          column: 1,
+        });
+        this.monacoEditorInstance.focus();
+      }
+    }
+  }
 
   scheduleLiveValidation() {
     if (this.validationTimeout) {
@@ -272,60 +268,29 @@ export class App implements AfterViewInit {
       return;
     }
 
-    try {
-      const jsObj = yaml.load(this.yamlText);
-      this.parsedJSON = jsObj;
-      this.parseError = '';
-      this.errorLine = -1;
+    this.onValidate();  
+  }
 
-      const ajv = new Ajv({ allErrors: true, strict: true });
-      const validate = ajv.compile(this.schema);
-      const valid = validate(jsObj);
-      if (!valid) {
-        const msgs = validate.errors!.map((e) => {
-          if (e.keyword === 'required' && (e.params as any).missingProperty) {
-            const missing = (e.params as any).missingProperty;
-            return `Path '${e.instancePath || '/'}': missing required property '${missing}'`;
-          }
-          return `Path '${e.instancePath || '/'}': ${e.message}`;
-        });
-        this.parseError = msgs.join('\n');
-        this.errorLine = -1;
-      }
-    } catch (err: any) {
-        this.parsedJSON = null;
-        this.parseError = err.reason || err.message;
-        this.errorLine = (err.mark?.line ?? -1);
-        if (this.errorLine > 0) {
-        this.monacoEditorInstance.revealLine(this.errorLine);
-        this.monacoEditorInstance.setPosition({
-        lineNumber: this.errorLine,
-        column: 1,
-       });
-      }
+  downloadSelected() {
+    if (!this.selectedConfig) return;
+
+    const key = 'config:' + this.selectedConfig;
+    const value = localStorage.getItem(key);
+    if (value === null) {
+      this.snackBar.open('No config found to download.', '', { duration: 2000 });
+      return;
     }
+
+    const blob = new Blob([value], { type: 'text/yaml' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${this.selectedConfig}.yaml`;
+    a.click();
+
+    URL.revokeObjectURL(url);
   }
-
-downloadSelected() {
-  if (!this.selectedConfig) return;
-
-  const key = 'config:' + this.selectedConfig;
-  const value = localStorage.getItem(key);
-  if (value === null) {
-    this.snackBar.open('No config found to download.', '', { duration: 2000 });
-    return;
-  }
-
-  const blob = new Blob([value], { type: 'text/yaml' });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${this.selectedConfig}.yaml`;
-  a.click();
-
-  URL.revokeObjectURL(url);
-}
 
   toggleView() {
     if (!this.monaco) {
